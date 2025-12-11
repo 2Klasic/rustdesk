@@ -1,0 +1,50 @@
+name: Build Custom RustDesk Client
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-all:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [windows, linux, macos]
+    env:
+      RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
+      RELAY_SERVER: ${{ secrets.RELAY_SERVER }}
+      RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Embed server configuration
+        run: |
+          echo "RUSTDESK_RENDEZVOUS_SERVER=${RENDEZVOUS_SERVER}" > .env
+          echo "RUSTDESK_RELAY_SERVER=${RELAY_SERVER}" >> .env
+          echo "RUSTDESK_PUBLIC_KEY=${RS_PUB_KEY}" >> .env
+
+      - name: Build RustDesk client
+        run: |
+          if [ "${{ matrix.platform }}" == "windows" ]; then
+            rustup target add x86_64-pc-windows-gnu
+            cargo build --release --target x86_64-pc-windows-gnu
+          elif [ "${{ matrix.platform }}" == "linux" ]; then
+            cargo build --release --target x86_64-unknown-linux-gnu
+          elif [ "${{ matrix.platform }}" == "macos" ]; then
+            rustup target add x86_64-apple-darwin
+            cargo build --release --target x86_64-apple-darwin
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rustdesk-${{ matrix.platform }}-custom-client
+          path: |
+            target/*-${{ matrix.platform }}-*/release/rustdesk*
